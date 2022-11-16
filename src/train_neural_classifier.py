@@ -104,11 +104,11 @@ if __name__ == "__main__":
     args.num_epochs = 5
     args.model_name = "M5"
     args.audio_folder_path = "data/fma_small"
-    args.sampling_freq = 500_000 
+    args.sampling_freq = 8_000 
     args.padding_length = None
-    args.truncation_length = None #1300000
+    args.truncation_length = 200_000 #1300000
     args.convert_one_channel = True
-    # args.load_dataset_path = "logs/datasets/dataset_fma_small_one_channel"
+    # args.load_dataset_path = "logs/datasets/dataset_fma_small_one_channel_torch_4k_samples500_000"
     args.load_dataset_path = None
     args.debug = True  # TODO delete
     args.desired_dataset_name = "dataset_fma_small_one_channel_torch_4k_samples500_000"
@@ -124,13 +124,12 @@ if __name__ == "__main__":
         "truncation_len" : args.truncation_length,
         "convert_one_channel": args.convert_one_channel
     }
-    num_genres = 8
-    if args.model_name == "M5":
-        n_input = 1_300_000 # TODO: likely need to change
-        if args.convert_one_channel:
+    if args.convert_one_channel:
             in_channels = 1
-        else:
-            in_channels = 2
+    else:
+        in_channels = 2
+    if args.model_name == "M5":
+        # n_input = 1_300_000 # TODO: likely need to change
         model = M5(n_input=in_channels, n_output=num_genres) 
         lr = 1e-4
         # can also experiment with different parameters
@@ -142,9 +141,8 @@ if __name__ == "__main__":
         test_description = "Testing M5 CNN model on test data"
     
     elif args.model_name == "FF":
-        n_input = 1_300_000
-        num_genres = 8
-        model = FF(n_input=n_input, n_output=num_genres)
+        # n_input = 1_300_000
+        model = FF(n_input=in_channels, n_output=num_genres)
         optimizer = optim.Adam(model.parameters(), lr=1e-3)
         epochs = 50
         criterion = nn.SGD()
@@ -157,7 +155,6 @@ if __name__ == "__main__":
             dataset = pickle.load(input_file)
     else:
         dataset = AudioDataset(meta_data_path = "data/fma_metadata", audio_folder_path = args.audio_folder_path, preprocessing_dict = preprocessing_dict, debug = args.debug, datatype = args.datatype)
-        print("poop")
         # save dataset in logs/datasets
         with open("logs/datasets/"+args.desired_dataset_name, "wb") as output_file:
             pickle.dump(dataset, output_file)
