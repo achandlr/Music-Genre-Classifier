@@ -22,8 +22,9 @@ class AudioDataset(Dataset):
         small_audio_file_cnt = 0
         for subdir, dirs, files in os.walk(audio_folder_path):
             for filename in files:
+                print(len(genres))
                 if filename.endswith(('.mp3')):
-                    if debug and len(audio_tensors) > 200:
+                    if debug and len(audio_tensors) > 4000:
                         break
                     track_id = eval(filename.rstrip(".mp3").lstrip('0')) 
                     track_csv_index = track_csv.index[track_csv["Unnamed: 0"] == track_id].tolist()
@@ -44,7 +45,7 @@ class AudioDataset(Dataset):
                         data_waveform = data_waveform.detach().numpy()
                     # ignore smaller audio samples (very rarely)
                     # TODO: confirm that replacing 1_300_000 with preprocessing_dict["truncation_len"] does not mess things up
-                    if data_waveform.shape[1] < preprocessing_dict["truncation_len"]:
+                    if  preprocessing_dict["truncation_len"]!= None and data_waveform.shape[1] < preprocessing_dict["truncation_len"]:
                         small_audio_file_cnt+=1
                         continue
                     audio_tensors.append(data_waveform)

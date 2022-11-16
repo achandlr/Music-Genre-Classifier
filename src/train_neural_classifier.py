@@ -104,14 +104,14 @@ if __name__ == "__main__":
     args.num_epochs = 5
     args.model_name = "M5"
     args.audio_folder_path = "data/fma_small"
-    args.sampling_freq = None 
+    args.sampling_freq = 500_000 
     args.padding_length = None
-    args.truncation_length = 1300000
+    args.truncation_length = None #1300000
     args.convert_one_channel = True
     # args.load_dataset_path = "logs/datasets/dataset_fma_small_one_channel"
     args.load_dataset_path = None
-    args.debug = False  # TODO delete
-    args.desired_dataset_name = "dataset_fma_small_one_channel_torch"
+    args.debug = True  # TODO delete
+    args.desired_dataset_name = "dataset_fma_small_one_channel_torch_4k_samples500_000"
     args.datatype = "torch"
     if args.audio_folder_path == "data/fma_small":
         num_genres = 8
@@ -157,6 +157,7 @@ if __name__ == "__main__":
             dataset = pickle.load(input_file)
     else:
         dataset = AudioDataset(meta_data_path = "data/fma_metadata", audio_folder_path = args.audio_folder_path, preprocessing_dict = preprocessing_dict, debug = args.debug, datatype = args.datatype)
+        print("poop")
         # save dataset in logs/datasets
         with open("logs/datasets/"+args.desired_dataset_name, "wb") as output_file:
             pickle.dump(dataset, output_file)
