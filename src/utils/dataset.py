@@ -32,7 +32,7 @@ class AudioDataset(Dataset):
             for filename in files:
                 # print("Start loop: {}".format(len(genres))) 
                 if filename.endswith(('.mp3')):
-                    if debug and len(audio_tensors) > 1000:
+                    if debug and len(audio_tensors) == 3000:
                         break
                     track_id = eval(filename.rstrip(".mp3").lstrip('0')) 
                     # track_csv_index = track_csv.index[track_csv["Unnamed: 0"] == track_id].tolist()
@@ -61,7 +61,7 @@ class AudioDataset(Dataset):
                     # print("Loading audio: {}".format(len(genres))) 
                     try:
                         data_waveform, rate_of_sample = torchaudio.load(filepath)
-                        preprocessing_dict["orig_freq"] = rate_of_sample
+                        preprocessing_dict["orig_freq"] = 16_000 # TODO Alex today
                     except Exception as e:
                         torch_audio_read_error_cnt +=1
                         continue
@@ -73,13 +73,14 @@ class AudioDataset(Dataset):
                         data_waveform = data_waveform.detach().numpy()
                     # ignore smaller audio samples (very rarely)
                     # TODO: confirm that replacing 1_300_000 with preprocessing_dict["truncation_len"] does not mess things up
+                    # skip sample if not of truncation length
                     if  preprocessing_dict["truncation_len"]!= None and data_waveform.shape[1] < preprocessing_dict["truncation_len"]:
                         small_audio_file_cnt+=1
                         continue
                     audio_tensors.append(data_waveform)
                     genres.append(genre)
         if datatype == "np" and preprocessing_dict["truncation_len"]!= None: #TODO Alex today
-            audio_tensors= np.concatenate(audio_tensors)
+            audio_tensors= np.concatenate(audio_tensors) # TODO: rename audio tensors with audio
         elif preprocessing_dict["truncation_len"]!= None: #TODO Alex today
             audio_tensors = torch.stack(audio_tensors)
         genres= np.array(genres)
@@ -111,7 +112,7 @@ class AudioDataset(Dataset):
         if sampling_freq != None:
             # orig_freq, new_freq = sampling["orig_freq"], sampling["new_freq"]
             waveform = resample(waveform, orig_freq, sampling_freq)
-            print(waveform.shape)
+            # print(waveform.shape)
 
         # Not necessary for our project
         if padding_length != None:

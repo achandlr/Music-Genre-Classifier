@@ -55,13 +55,14 @@ def train_network_with_validation(model, train_loader, val_loader, test_loader, 
     val_loss_list = []
     try:
         for epoch in tqdm(range(num_epochs)):
-            problem_cnt = 0
+            # problem_cnt = 0
             model.train()
             print('EPOCH %d'%epoch)
             total_loss = 0
             count = 0
             for inputs, labels in train_loader:
                 inputs = inputs.to(device)
+                # assert inputs.requires_grad==True 
                 # print(inputs.shape)
                 labels = labels.to(device)
                 optimizer.zero_grad()
@@ -106,23 +107,25 @@ def train_network_with_validation(model, train_loader, val_loader, test_loader, 
 # Note to grader: K-Fold validation and other cross validation techniques are not used due to computational constraints
 if __name__ == "__main__":
     args = training_parser.parse_args()
-    args.batch_size = 1 # TODO: delete later # TODO Alex today
+    args.batch_size = 20 # TODO: delete later # TODO Alex today
     args.device = "cpu"
     args.num_epochs = 5
     args.model_name = "M5"
-    args.audio_folder_path = "data/fma_small"
+    args.audio_folder_path = "data/fma_small" 
     args.sampling_freq = 8_000 
     args.padding_length = None 
-    # args.truncation_length = 200_000 #1300000
+    args.truncation_length = 200_000 #1300000
     args.convert_one_channel = True     #TODO Alex today
     # args.truncation_length = None      
     # args.truncation_length = 200_000 #1300000
-    args.load_dataset_path = "logs/datasets/dataset_fma_small_one_channel_torch_4k_samples500_000"
-    # args.load_dataset_path = "logs/datasets/dataset_fma_small_two_channels_torch_4k_samples_no_truncation_sampling8000"
-
-    # args.load_dataset_path = None
+    # args.load_dataset_path = "logs/datasets/dataset_fma_small_one_channel_torch_4k_samples500_000"
+    # args.load_dataset_path = "logs/datasets/dataset_fma_small_one_channel_datatypetorch_samples200_truncation200_000_sampling8_000"
+    args.dump_dataset = False # TODO: insert to arg parser
+    args.save_model_path = None
+    args.load_model_path = "logs/models/" + args.model_name
+    args.load_dataset_path = None
     args.debug = True  # TODO delete
-    args.desired_dataset_name = "dataset_fma_small_two_channels_torch_4k_samples_no_truncation_sampling8000"
+    args.desired_dataset_name = "dataset_fma_small_one_channel_datatypetorch_samples200_truncation200_000_sampling8_000"
     args.datatype = "torch"
     if args.audio_folder_path == "data/fma_small":
         num_genres = 8
@@ -166,6 +169,9 @@ if __name__ == "__main__":
         criterion = nn.CrossEntropyLoss()
         description = "Training CNN_Custom1 model with Adam and CrossEntropyLoss"
         test_description = "Testing CNN_Custom1 CNN model on test data"
+    # https://huggingface.co/docs/transformers/v4.24.0/en/model_doc/auto#transformers.AutoModelForAudioClassification
+    elif args.model_name == "wav2vec":
+        raise NotImplementedError()
     else:
         raise NotImplementedError("Model name not implemented")
     if args.load_dataset_path != None:
@@ -174,9 +180,13 @@ if __name__ == "__main__":
     else:
         dataset = AudioDataset(meta_data_path = "data/fma_metadata", audio_folder_path = args.audio_folder_path, preprocessing_dict = preprocessing_dict, debug = args.debug, datatype = args.datatype)
         # save dataset in logs/datasets
-        with open("logs/datasets/"+args.desired_dataset_name, "wb") as output_file:
-            pickle.dump(dataset, output_file)
+        if args.dump_dataset:
+            with open("logs/datasets/"+args.desired_dataset_name, "wb") as output_file:
+                pickle.dump(dataset, output_file)
     train_loader, val_loader, test_loader = get_data_loaders(dataset, batch_size=args.batch_size)
 
     queue_loss_list, train_loss_list, val_loss_list = train_network_with_validation(model, train_loader, val_loader, test_loader, criterion, optimizer, description, num_epochs=args.num_epochs, device = "cpu", scheduler = scheduler, batch_size = args.batch_size)
     test_acc = test_network(model, test_loader, description)
+    if args.save_model_path!= None:
+        model.load_state_dict(torch.load(args.save_model_path))
+        model.eval()
