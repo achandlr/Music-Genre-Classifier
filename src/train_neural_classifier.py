@@ -22,7 +22,7 @@ def get_data_loaders(dataset, batch_size):
     return train_loader, val_loader, test_loader
 
 # heavily modified from existing implementation of a computer vision training loop I built: https://github.com/achandlr/Musical-Instruments/blob/master/2022%20Implementation%20(Improved%20Implementation%20With%20Different%20Focus)/Using%20Transfer%20Learning%20for%20Musical%20Instrument%20Classification.ipynb  
-def test_network(model, test_loader, description, debug= False, device = "cpu"):
+def test_network(model, test_loader, description, debug= False, device = "cpu", topk=1):
     correct = 0
     total = 0
     true, pred = [], []
@@ -33,11 +33,15 @@ def test_network(model, test_loader, description, debug= False, device = "cpu"):
             labels = labels.to(device)
             outputs = model.forward(inputs)
             outputs = torch.squeeze(outputs)
-            # unbatched case
-            if len(outputs.size()) ==1:
-                predicted = torch.argmax(outputs.cpu())
+            if topk == 1:
+                # unbatched case
+                if len(outputs.size()) ==1:
+                    predicted = torch.argmax(outputs.cpu())
+                else:
+                    predicted = torch.argmax(outputs.cpu(), dim=1)
             else:
-                predicted = torch.argmax(outputs.cpu(), dim=1)
+                raise NotImplementedError()
+                # top_k_predictions = torch.topk(outputs.cpu(), topk)
             total += labels.size(0)
             correct += (predicted == labels.cpu()).sum().item()
             true.append(labels)
@@ -112,21 +116,25 @@ if __name__ == "__main__":
     args.num_epochs = 5
     args.model_name = "M5"
     args.audio_folder_path = "data/fma_small" 
-    args.sampling_freq = 8_000 
+    # args.sampling_freq = 16_000 
+    args.sampling_freq = 8_00 
+    args.truncation_length = 60_000 #1300000
+
     args.padding_length = None 
-    args.truncation_length = 200_000 #1300000
+    # args.truncation_length = 400_000 #1300000
     args.convert_one_channel = True     #TODO Alex today
     # args.truncation_length = None      
     # args.truncation_length = 200_000 #1300000
     # args.load_dataset_path = "logs/datasets/dataset_fma_small_one_channel_torch_4k_samples500_000"
     # args.load_dataset_path = "logs/datasets/dataset_fma_small_one_channel_datatypetorch_samples200_truncation200_000_sampling8_000"
     args.dump_dataset = False # TODO: insert to arg parser
-    args.save_model_path = None
-    args.load_model_path = "logs/models/" + args.model_name
+    args.save_model_path = "logs/models/" + args.model_name
+    args.load_model_path = None # "logs/models/" + args.model_name
     args.load_dataset_path = None
-    args.debug = True  # TODO delete
+    args.debug = False  # TODO delete
     args.desired_dataset_name = "dataset_fma_small_one_channel_datatypetorch_samples200_truncation200_000_sampling8_000"
     args.datatype = "torch"
+    args.acceptable_genres = ['Hip-Hop', 'Jazz']
     if args.audio_folder_path == "data/fma_small":
         num_genres = 8
     else:
@@ -171,7 +179,41 @@ if __name__ == "__main__":
         test_description = "Testing CNN_Custom1 CNN model on test data"
     # https://huggingface.co/docs/transformers/v4.24.0/en/model_doc/auto#transformers.AutoModelForAudioClassification
     elif args.model_name == "wav2vec":
-        raise NotImplementedError()
+        from transformers import AutoFeatureExtractor
+        from transformers import AutoModelForAudioClassification, TrainingArguments, Trainer
+        # using code from https://huggingface.co/docs/transformers/tasks/audio_classification
+        dataset = AudioDataset(meta_data_path = "data/fma_metadata", audio_folder_path = args.audio_folder_path, preprocessing_dict = preprocessing_dict, debug = args.debug, datatype = args.datatype, return_type = dict)
+        num_labels = len(dataset.genres_factorized[1])
+        id2label,label2id = {}, {}
+        for id in range(num_labels):
+            id2label[str(id)] = dataset.genres_factorized[1][id]
+            label2id[dataset.genres_factorized[1][id]] = str(id)
+        print(id2label)
+        print(label2id)
+        model = AutoModelForAudioClassification.from_pretrained(
+        "facebook/wav2vec2-base", num_labels=num_labels, label2id=label2id, id2label=id2label)
+        feature_extractor = AutoFeatureExtractor.from_pretrained("facebook/wav2vec2-base")
+        training_args = TrainingArguments(
+            output_dir="./results",
+            evaluation_strategy="epoch",
+            save_strategy="epoch",
+            learning_rate=3e-5,
+            num_train_epochs=5,
+        )
+        # train_size, test_size, val_size = int(len(dataset)*.6), int(len(dataset)*.2), int(len(dataset)*.2)
+        # while train_size + test_size + val_size != len(dataset): # fixes any rouning error
+        #     val_size +=1
+        train_set, test_set, val_set, = torch.utils.data.random_split(dataset, [.6, .2, .2]) # TODO: not using validation dataset 
+        trainer = Trainer(
+            model=model,
+            args=training_args,
+            train_dataset=train_set,
+            eval_dataset=test_set,
+            tokenizer=feature_extractor,
+        )       
+        trainer.train()
+        trainer.evaluate()
+        exit()
     else:
         raise NotImplementedError("Model name not implemented")
     if args.load_dataset_path != None:
@@ -184,9 +226,13 @@ if __name__ == "__main__":
             with open("logs/datasets/"+args.desired_dataset_name, "wb") as output_file:
                 pickle.dump(dataset, output_file)
     train_loader, val_loader, test_loader = get_data_loaders(dataset, batch_size=args.batch_size)
-
+    if args.load_model_path!=None:
+        model.load_state_dict(torch.load(args.load_model_path))
+        # model.eval()
+    # transformers are trained differently than a CNN so ignore that for now
+    # if args.model_name != "wav2vec":
     queue_loss_list, train_loss_list, val_loss_list = train_network_with_validation(model, train_loader, val_loader, test_loader, criterion, optimizer, description, num_epochs=args.num_epochs, device = "cpu", scheduler = scheduler, batch_size = args.batch_size)
     test_acc = test_network(model, test_loader, description)
     if args.save_model_path!= None:
-        model.load_state_dict(torch.load(args.save_model_path))
-        model.eval()
+        torch.save(model.state_dict(), args.save_model_path)
+        # model.eval()

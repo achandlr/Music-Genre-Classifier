@@ -13,7 +13,8 @@ import random
 
 class AudioDataset(Dataset):
 
-    def __init__(self, meta_data_path, audio_folder_path, preprocessing_dict = {}, debug = False, datatype = "torch"):
+    def __init__(self, meta_data_path, audio_folder_path, preprocessing_dict = {}, debug = False, datatype = "torch", return_type = tuple, accepted_genres = None):
+        self.return_type = return_type
         # genres_jupyter_csv = utils.load('data/fma_metadata/genres.csv')
         tracks_jupyter_csv = load('data/fma_metadata/tracks.csv')
         genres_jupyter = tracks_jupyter_csv.loc[:, ('track', 'genre_top')]
@@ -23,16 +24,19 @@ class AudioDataset(Dataset):
         audio_tensors = [] 
         genres = [] 
         # invalid_genres = set(['nan'])
-        accepted_genres = set(['Experimental', 'Pop', 'Folk', 'Electronic',
-       'Rock', 'Hip-Hop', 'Instrumental', 'Jazz']) # took out 'International' and "nan"
+        if accepted_genres is None:
+            accepted_genres = set(['Experimental', 'Pop', 'Folk', 'Electronic',
+        'Rock', 'Hip-Hop', 'Instrumental', 'Jazz']) # took out 'International' and "nan"
         not_found_cnt = 0
         torch_audio_read_error_cnt = 0
         small_audio_file_cnt = 0
+        bad_genre_cnt = 0
+        bad_processing_cnt  = 0
         for subdir, dirs, files in os.walk(audio_folder_path):
             for filename in files:
                 # print("Start loop: {}".format(len(genres))) 
                 if filename.endswith(('.mp3')):
-                    if debug and len(audio_tensors) == 3000:
+                    if debug and len(audio_tensors) == 100:
                         break
                     track_id = eval(filename.rstrip(".mp3").lstrip('0')) 
                     # track_csv_index = track_csv.index[track_csv["Unnamed: 0"] == track_id].tolist()
@@ -48,6 +52,7 @@ class AudioDataset(Dataset):
                         not_found_cnt +=1
                         continue
                     if genre not in accepted_genres:
+                        bad_genre_cnt+=1
                         continue
                     # if genre != genre_query_method_2:
                     #     print("manual check")
@@ -68,6 +73,7 @@ class AudioDataset(Dataset):
                     # print("Applying processing: {}".format(len(genres))) 
                     data_waveform = self.apply_preproccess(data_waveform, preprocessing_dict)
                     if data_waveform is None:
+                        bad_processing_cnt +=1
                         continue
                     if datatype == "np":
                         data_waveform = data_waveform.detach().numpy()
@@ -85,7 +91,13 @@ class AudioDataset(Dataset):
             audio_tensors = torch.stack(audio_tensors)
         genres= np.array(genres)
 
-        
+        self.error_dict = {
+        "not_found_cnt" : not_found_cnt,
+        "torch_audio_read_error_cnt" : torch_audio_read_error_cnt,
+        "small_audio_file_cnt" : small_audio_file_cnt,
+        "bad_genre_cnt": bad_genre_cnt,
+        "bad_processing_cnt": bad_processing_cnt}
+
         # genres = genres
         temp = list(zip(audio_tensors, genres))
         random.shuffle(temp)
@@ -93,6 +105,9 @@ class AudioDataset(Dataset):
         self.audio_tensors = audio_tensors
         self.genres_factorized = pd.factorize(pd.Series(genres))
 
+
+    def report_data_processing_errors(self):
+        return self.error_dict
 
     def __len__(self):
         assert len(self.audio_tensors) == len(self.genres_factorized[0])
@@ -131,8 +146,11 @@ class AudioDataset(Dataset):
     #     raise NotImplementedError()
     #     # return self.cat_embeddings.shape[1]
 
-    def __getitem__(self, idx):        
-        return self.audio_tensors[idx], self.genres_factorized[0][idx]
+    def __getitem__(self, idx): 
+        if self.return_type == tuple:
+            return self.audio_tensors[idx], self.genres_factorized[0][idx]
+        else:
+            return {"input_ids": self.audio_tensors[idx], "labels": self.genres_factorized[0][idx]} # TODO: check this is probably wrong
 
 
 # directly copied from original data location: This is a helper file for loading in the dataset https://github.com/mdeff/fma/blob/master/utils.py

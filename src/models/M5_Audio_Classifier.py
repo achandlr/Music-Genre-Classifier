@@ -6,10 +6,8 @@ import torch.nn.functional as F
 import torch.optim as optim
 import torchaudio
 import sys
-
 import matplotlib.pyplot as plt
 # import IPython.display as ipd
-
 from tqdm import tqdm
 
 class M5(nn.Module):
@@ -31,7 +29,7 @@ class M5(nn.Module):
 
     def forward(self, x):
         # make data [batch_size, input_channels, signal_length]
-        x = torch.unsqueeze(x, dim=-2)
+        # x = torch.unsqueeze(x, dim=-2)
         # x = x.permute(0,2,1)
         # batch len, by channel length, by tensor for each channel
         x = self.conv1(x)
