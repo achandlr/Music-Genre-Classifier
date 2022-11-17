@@ -64,8 +64,11 @@ class AudioDataset(Dataset):
                         preprocessing_dict["orig_freq"] = rate_of_sample
                     except Exception as e:
                         torch_audio_read_error_cnt +=1
+                        continue
                     # print("Applying processing: {}".format(len(genres))) 
                     data_waveform = self.apply_preproccess(data_waveform, preprocessing_dict)
+                    if data_waveform is None:
+                        continue
                     if datatype == "np":
                         data_waveform = data_waveform.detach().numpy()
                     # ignore smaller audio samples (very rarely)
@@ -75,7 +78,10 @@ class AudioDataset(Dataset):
                         continue
                     audio_tensors.append(data_waveform)
                     genres.append(genre)
-        audio_tensors= np.concatenate(audio_tensors)
+        if datatype == "np" and preprocessing_dict["truncation_len"]!= None: #TODO Alex today
+            audio_tensors= np.concatenate(audio_tensors)
+        elif preprocessing_dict["truncation_len"]!= None: #TODO Alex today
+            audio_tensors = torch.stack(audio_tensors)
         genres= np.array(genres)
 
         
@@ -114,8 +120,11 @@ class AudioDataset(Dataset):
         if truncation_len != None:
             waveform = truncate_sample(waveform, truncation_len)
 
-        if convert_one_channel != None:
+        if convert_one_channel != False:
             waveform = convert_to_one_channel(waveform)
+        elif waveform.shape[0] !=2:
+            # Return None if the waveform is not two channels
+            return None
         return waveform
     # def input_size(self):
     #     raise NotImplementedError()
