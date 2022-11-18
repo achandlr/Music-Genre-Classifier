@@ -39,11 +39,14 @@ def test_network(model, test_loader, description, debug= False, device = "cpu", 
                     predicted = torch.argmax(outputs.cpu())
                 else:
                     predicted = torch.argmax(outputs.cpu(), dim=1)
+                correct += (predicted == labels.cpu()).sum().item()
             else:
-                raise NotImplementedError()
+                predicted =torch.topk(outputs, topk).indices
+                for idx, label in enumerate(labels):
+                    if label in predicted[idx]:
+                        correct +=1
                 # top_k_predictions = torch.topk(outputs.cpu(), topk)
             total += labels.size(0)
-            correct += (predicted == labels.cpu()).sum().item()
             true.append(labels)
             pred.append(predicted)   
     acc = (100 * correct / total)
@@ -111,7 +114,7 @@ def train_network_with_validation(model, train_loader, val_loader, test_loader, 
 # Note to grader: K-Fold validation and other cross validation techniques are not used due to computational constraints
 if __name__ == "__main__":
     args = training_parser.parse_args()
-    args.batch_size = 20 # TODO: delete later # TODO Alex today
+    args.batch_size = 4 # TODO: delete later # TODO Alex today
     args.device = "cpu"
     args.num_epochs = 5
     args.model_name = "M5"
@@ -131,10 +134,11 @@ if __name__ == "__main__":
     args.save_model_path = "logs/models/" + args.model_name
     args.load_model_path = None # "logs/models/" + args.model_name
     args.load_dataset_path = None
-    args.debug = False  # TODO delete
+    args.debug = True  # TODO delete
     args.desired_dataset_name = "dataset_fma_small_one_channel_datatypetorch_samples200_truncation200_000_sampling8_000"
     args.datatype = "torch"
-    args.acceptable_genres = ['Hip-Hop', 'Jazz']
+    args.acceptable_genres = None # ['Hip-Hop', 'Jazz']
+    args.topk = 3 # default is 1
     if args.audio_folder_path == "data/fma_small":
         num_genres = 8
     else:
@@ -232,7 +236,7 @@ if __name__ == "__main__":
     # transformers are trained differently than a CNN so ignore that for now
     # if args.model_name != "wav2vec":
     queue_loss_list, train_loss_list, val_loss_list = train_network_with_validation(model, train_loader, val_loader, test_loader, criterion, optimizer, description, num_epochs=args.num_epochs, device = "cpu", scheduler = scheduler, batch_size = args.batch_size)
-    test_acc = test_network(model, test_loader, description)
+    test_acc = test_network(model, test_loader, description, topk = args.topk)
     if args.save_model_path!= None:
         torch.save(model.state_dict(), args.save_model_path)
         # model.eval()

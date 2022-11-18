@@ -36,7 +36,7 @@ class AudioDataset(Dataset):
             for filename in files:
                 # print("Start loop: {}".format(len(genres))) 
                 if filename.endswith(('.mp3')):
-                    if debug and len(audio_tensors) == 100:
+                    if debug and len(audio_tensors) == 60:
                         break
                     track_id = eval(filename.rstrip(".mp3").lstrip('0')) 
                     # track_csv_index = track_csv.index[track_csv["Unnamed: 0"] == track_id].tolist()

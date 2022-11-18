@@ -128,12 +128,19 @@ else:
 <!-- ABOUT THE PROJECT -->
 ## Dataset Used
 
-We use the Free Music Archive (FMA), dataset containing 106,574 tracks with associated MP3 files, artist information, and genre. The dataset is over 100 Gigabytes, and therefore, we use FMA Small, a dataset of 8,000 tracks of 30s, 8 balanced genres (GTZAN-like) (7.2 GiB).
+We use the Free Music Archive (FMA), dataset containing 106,574 tracks with associated MP3 files, artist information, and genre. The dataset is over 100 Gigabytes, and therefore, we use FMA Small, a dataset of 8,000 tracks of 30s, 8 balanced genres (GTZAN-like) (7.2 GiB). The dataset has several issues. I dissagree with several of the genre labels used.
 
 ### Prerequisites
 
 For reproducibility, this project relies on the FMA dataset available at https://github.com/mdeff/fma.
 
+
+## Evaluation
+We evaluate the genre classification using both traditional error metrics including recall, precision, accuracy. One challenge with evaluating accuracy is that a song can be multiple genres. A song, for example, can be both acoustic and pop. For this reason,
+we also evaluate top-k accuracy, or the chance that the out of the top-k most likely predicted genres, one of them is the labled genre. 
+
+# Info to Group:
+Look at this for how to do data augmentation. https://music-classification.github.io/tutorial/part3_supervised/tutorial.html
 
 <!-- CONTACT -->
 ## Contact

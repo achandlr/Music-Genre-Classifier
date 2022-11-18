@@ -8,3 +8,4 @@ torchaudio
 librosa
 parse-utils
 ipywidgets
+transformers
