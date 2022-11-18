@@ -9,3 +9,4 @@ librosa
 parse-utils
 ipywidgets
 transformers
+datasets

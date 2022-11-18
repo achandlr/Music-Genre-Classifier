@@ -2,7 +2,6 @@
 from models.M5_Audio_Classifier import *
 from models.FeedForward import *
 from models.CNN_Custom_1 import *
-
 from utils.dataset import AudioDataset
 from torch.utils.data import Dataset, DataLoader
 from utils.parsers import training_parser
@@ -10,8 +9,8 @@ import numpy as np
 from tqdm.notebook import tqdm
 import torch.nn.functional as F
 from collections import deque
-import pickle # TODO: can replace with h5py file 
-
+import pickle # Could replace with h5py file for security reasons
+import datasets
 
 def get_data_loaders(dataset, batch_size):
     # 60% - train set, 20% - validation set, 20% - test set
@@ -21,7 +20,7 @@ def get_data_loaders(dataset, batch_size):
     test_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, sampler=test_indices)
     return train_loader, val_loader, test_loader
 
-# heavily modified from existing implementation of a computer vision training loop I built: https://github.com/achandlr/Musical-Instruments/blob/master/2022%20Implementation%20(Improved%20Implementation%20With%20Different%20Focus)/Using%20Transfer%20Learning%20for%20Musical%20Instrument%20Classification.ipynb  
+# heavily modified from existing implementation of a computer vision training loop Alex built: https://github.com/achandlr/Musical-Instruments/blob/master/2022%20Implementation%20(Improved%20Implementation%20With%20Different%20Focus)/Using%20Transfer%20Learning%20for%20Musical%20Instrument%20Classification.ipynb  
 def test_network(model, test_loader, description, debug= False, device = "cpu", topk=1):
     correct = 0
     total = 0
@@ -114,26 +113,19 @@ def train_network_with_validation(model, train_loader, val_loader, test_loader, 
 # Note to grader: K-Fold validation and other cross validation techniques are not used due to computational constraints
 if __name__ == "__main__":
     args = training_parser.parse_args()
-    args.batch_size = 4 # TODO: delete later # TODO Alex today
+    args.batch_size = 32 
     args.device = "cpu"
     args.num_epochs = 5
-    args.model_name = "M5"
+    args.model_name = "wav2vec"
     args.audio_folder_path = "data/fma_small" 
-    # args.sampling_freq = 16_000 
-    args.sampling_freq = 8_00 
-    args.truncation_length = 60_000 #1300000
-
+    args.sampling_freq = 16_000 # 8_000
+    args.truncation_length =   120_000 #1300000 400_000 None
     args.padding_length = None 
-    # args.truncation_length = 400_000 #1300000
-    args.convert_one_channel = True     #TODO Alex today
-    # args.truncation_length = None      
-    # args.truncation_length = 200_000 #1300000
-    # args.load_dataset_path = "logs/datasets/dataset_fma_small_one_channel_torch_4k_samples500_000"
-    # args.load_dataset_path = "logs/datasets/dataset_fma_small_one_channel_datatypetorch_samples200_truncation200_000_sampling8_000"
+    args.convert_one_channel = True 
     args.dump_dataset = False # TODO: insert to arg parser
     args.save_model_path = "logs/models/" + args.model_name
     args.load_model_path = None # "logs/models/" + args.model_name
-    args.load_dataset_path = None
+    args.load_dataset_path = None # "logs/datasets/dataset_fma_small_one_channel_torch_4k_samples500_000" # "logs/datasets/dataset_fma_small_one_channel_datatypetorch_samples200_truncation200_000_sampling8_000"
     args.debug = True  # TODO delete
     args.desired_dataset_name = "dataset_fma_small_one_channel_datatypetorch_samples200_truncation200_000_sampling8_000"
     args.datatype = "torch"
@@ -142,7 +134,7 @@ if __name__ == "__main__":
     if args.audio_folder_path == "data/fma_small":
         num_genres = 8
     else:
-        raise NotImplementedError()
+        raise NotImplementedError("Limiting scope of project to 8,000 audio files due to computational and memory constraints.")
     # build preprocessing_dict from arg parameters
     preprocessing_dict = {
         "sampling_freq": args.sampling_freq,
@@ -156,19 +148,14 @@ if __name__ == "__main__":
         in_channels = 2
     scheduler = None
     if args.model_name == "M5":
-        # n_input = 1_300_000 # TODO: likely need to change
         model = M5(n_input=in_channels, n_output=num_genres) 
         lr = 1e-3
         # can also experiment with different parameters
-        optimizer = optim.Adam(model.parameters(), lr=lr) 
-        # optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9)
-        # can also try other optimzers like SGD
+        optimizer = optim.Adam(model.parameters(), lr=lr) # torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9)
         criterion = nn.CrossEntropyLoss()
         description = "Training M5 CNN model with Adam and CrossEntropyLoss"
         test_description = "Testing M5 CNN model on test data"
-    
     elif args.model_name == "FF":
-        # n_input = 1_300_000
         model = FF(n_input=in_channels, n_output=num_genres)
         optimizer = optim.Adam(model.parameters(), lr=1e-3)
         criterion = nn.SGD()
@@ -181,19 +168,34 @@ if __name__ == "__main__":
         criterion = nn.CrossEntropyLoss()
         description = "Training CNN_Custom1 model with Adam and CrossEntropyLoss"
         test_description = "Testing CNN_Custom1 CNN model on test data"
-    # https://huggingface.co/docs/transformers/v4.24.0/en/model_doc/auto#transformers.AutoModelForAudioClassification
+    # Use SOTA Audio Classifier from the huggingface library
     elif args.model_name == "wav2vec":
         from transformers import AutoFeatureExtractor
         from transformers import AutoModelForAudioClassification, TrainingArguments, Trainer
-        # using code from https://huggingface.co/docs/transformers/tasks/audio_classification
-        dataset = AudioDataset(meta_data_path = "data/fma_metadata", audio_folder_path = args.audio_folder_path, preprocessing_dict = preprocessing_dict, debug = args.debug, datatype = args.datatype, return_type = dict)
-        num_labels = len(dataset.genres_factorized[1])
+        from datasets import load_dataset, load_metric
+        from torch.utils.data import random_split
+        metric = load_metric("accuracy")
+        # Note to grader: the following is somewhat out of scope of the project, and relies on modified starter code from from https://huggingface.co/docs/transformers/tasks/audio_classification
+        torch_dataset = AudioDataset(meta_data_path = "data/fma_metadata", audio_folder_path = args.audio_folder_path, preprocessing_dict = preprocessing_dict, debug = args.debug, datatype = args.datatype, return_type = dict)
+        train_dataset, val_dataset, test_dataset, = random_split(torch_dataset, [.6, .2, .2]) # maybe need .values()
+        # build a DatasetDict of the split datasets
+        dataset = datasets.DatasetDict({"train":train_dataset,"validation": val_dataset, "test":test_dataset})
+        num_labels = len(torch_dataset.genres_factorized[1])
+        # create a one to one mapping and inverse mapping of id2label
         id2label,label2id = {}, {}
         for id in range(num_labels):
-            id2label[str(id)] = dataset.genres_factorized[1][id]
-            label2id[dataset.genres_factorized[1][id]] = str(id)
-        print(id2label)
-        print(label2id)
+            id2label[str(id)] = torch_dataset.genres_factorized[1][id]
+            label2id[torch_dataset.genres_factorized[1][id]] = str(id)
+        # print(id2label)
+        # print(label2id)
+
+        # Note to grader: The following code is modified from a colab notebook linked in the official huggingface website (linked below)
+        # https://colab.research.google.com/github/huggingface/notebooks/blob/main/examples/audio_classification.ipynb#scrollTo=EVWfiBuv2uCS
+        def compute_metrics(eval_pred):
+            """Computes accuracy on a batch of predictions"""
+            predictions = np.argmax(eval_pred.predictions, axis=1)
+            return metric.compute(predictions=predictions, references=eval_pred.label_ids)
+        # instantiates on a pre trained audio classifcation model
         model = AutoModelForAudioClassification.from_pretrained(
         "facebook/wav2vec2-base", num_labels=num_labels, label2id=label2id, id2label=id2label)
         feature_extractor = AutoFeatureExtractor.from_pretrained("facebook/wav2vec2-base")
@@ -202,19 +204,32 @@ if __name__ == "__main__":
             evaluation_strategy="epoch",
             save_strategy="epoch",
             learning_rate=3e-5,
-            num_train_epochs=5,
+            num_train_epochs=args.num_epochs,
         )
-        # train_size, test_size, val_size = int(len(dataset)*.6), int(len(dataset)*.2), int(len(dataset)*.2)
-        # while train_size + test_size + val_size != len(dataset): # fixes any rouning error
-        #     val_size +=1
-        train_set, test_set, val_set, = torch.utils.data.random_split(dataset, [.6, .2, .2]) # TODO: not using validation dataset 
+        model_checkpoint = "./logs/models/wav2vec2-base" # TODO: change to 
+        model_name = model_checkpoint.split("/")[-1]
+        training_args = TrainingArguments(
+        f"{model_name}-finetuned-ks",
+        evaluation_strategy = "epoch",
+        save_strategy = "epoch",
+        learning_rate=3e-5,
+        per_device_train_batch_size=args.batch_size,
+        gradient_accumulation_steps=4,
+        per_device_eval_batch_size=args.batch_size,
+        num_train_epochs=args.num_epochs,
+        warmup_ratio=0.1,
+        logging_steps=10,
+        load_best_model_at_end=True,
+        metric_for_best_model="accuracy",
+        # push_to_hub=True,
+        )
         trainer = Trainer(
-            model=model,
-            args=training_args,
-            train_dataset=train_set,
-            eval_dataset=test_set,
-            tokenizer=feature_extractor,
-        )       
+        model,
+        training_args,
+        train_dataset=dataset["train"],
+        eval_dataset=dataset["validation"],
+        tokenizer=feature_extractor,
+        compute_metrics=compute_metrics)
         trainer.train()
         trainer.evaluate()
         exit()

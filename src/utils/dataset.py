@@ -36,7 +36,7 @@ class AudioDataset(Dataset):
             for filename in files:
                 # print("Start loop: {}".format(len(genres))) 
                 if filename.endswith(('.mp3')):
-                    if debug and len(audio_tensors) == 60:
+                    if debug and len(audio_tensors) == 1280:
                         break
                     track_id = eval(filename.rstrip(".mp3").lstrip('0')) 
                     # track_csv_index = track_csv.index[track_csv["Unnamed: 0"] == track_id].tolist()
@@ -142,15 +142,14 @@ class AudioDataset(Dataset):
             # Return None if the waveform is not two channels
             return None
         return waveform
-    # def input_size(self):
-    #     raise NotImplementedError()
-    #     # return self.cat_embeddings.shape[1]
 
     def __getitem__(self, idx): 
         if self.return_type == tuple:
             return self.audio_tensors[idx], self.genres_factorized[0][idx]
+        elif self.return_type == dict:
+            return {"input_values": self.audio_tensors[idx].squeeze(), "label": self.genres_factorized[0][idx]} # TODO: check this is probably wrong
         else:
-            return {"input_ids": self.audio_tensors[idx], "labels": self.genres_factorized[0][idx]} # TODO: check this is probably wrong
+            raise NotImplementedError()
 
 
 # directly copied from original data location: This is a helper file for loading in the dataset https://github.com/mdeff/fma/blob/master/utils.py
